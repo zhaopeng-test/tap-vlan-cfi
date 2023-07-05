@@ -1,0 +1,96 @@
+1、复现 条件  write 
+      scapy 构造 vlan 带cfi 报文，发给tap0，tap0收到后write 到tap1，
+     tap1 抓包后出现。
+
+2、    tap 口收包
+1）nread = read(tun_fd, buffer, sizeof(buffer));
+       
+static const struct file_operations tun_fops = {
+	.owner	= THIS_MODULE,
+	.llseek = no_llseek,
+	.read  = do_sync_read,
+	.aio_read  = tun_chr_aio_read,
+	.write = do_sync_write,
+	.aio_write = tun_chr_aio_write,
+	.poll	= tun_chr_poll,
+	.unlocked_ioctl	= tun_chr_ioctl,
+#ifdef CONFIG_COMPAT
+	.compat_ioctl = tun_chr_compat_ioctl,
+#endif
+	.open	= tun_chr_open,
+	.release = tun_chr_close,
+	.fasync = tun_chr_fasync,
+#ifdef CONFIG_PROC_FS
+	.show_fdinfo = tun_chr_show_fdinfo,
+#endif
+};
+
+tun_chr_aio_read 
+        tun_do_read
+            tun_put_user 数据传给用户态
+
+2）nwrite = write(fd, buffer, nread); 实现
+       tun_chr_aio_write
+               tun_get_user
+               skb = tun_alloc_skb(tfile, align, copylen, linear, noblock);
+                              netif_rx_ni(skb);
+                                    netif_rx_internal(struct sk_buff *skb)
+                                                enqueue_to_backlog(skb, get_cpu(), &qtail);添加到队列
+
+
+3）内核软中断收包
+       netif_receive_skb
+              netif_receive_skb_internal
+                  __netif_receive_skb
+                          __netif_receive_skb_core
+                                tcpdump 抓包：
+				list_for_each_entry_rcu(ptype, &ptype_all, list) {
+					if (pt_prev)
+						ret = deliver_skb(skb, pt_prev, orig_dev);
+					pt_prev = ptype;
+				}
+                                     
+                         
+ 4）收包流程
+         deliver_skb  软中断放入到sk 队列
+             pt_prev->func(skb, skb->dev, pt_prev, orig_dev);      
+                      packet_rcv
+                                  run_filter(skb, sk, snaplen);
+                                      __skb_queue_tail(&sk->sk_receive_queue, skb); 加入队列
+
+
+      具体收包系统调用
+static const struct proto_ops packet_ops = {
+	.family =	PF_PACKET,
+	.owner =	THIS_MODULE,
+	.release =	packet_release,
+	.bind =		packet_bind,
+	.connect =	sock_no_connect,
+	.socketpair =	sock_no_socketpair,
+	.accept =	sock_no_accept,
+	.getname =	packet_getname,
+	.poll =		packet_poll,
+	.ioctl =	packet_ioctl,
+	.listen =	sock_no_listen,
+	.shutdown =	sock_no_shutdown,
+	.setsockopt =	packet_setsockopt,
+	.getsockopt =	packet_getsockopt,
+	.sendmsg =	packet_sendmsg,
+	.recvmsg =	packet_recvmsg,
+	.mmap =		packet_mmap,
+	.sendpage =	sock_no_sendpage,
+};
+           packet_recvmsg        
+                   skb = skb_recv_datagram(sk, flags, flags & MSG_DONTWAIT, &err); 队列出队
+                   skb_copy_datagram_msg(skb, 0, msg, copied); 拷贝数据到用户态
+                设置vlan
+		if (skb_vlan_tag_present(skb)) {
+			aux.tp_vlan_tci = skb_vlan_tag_get(skb);
+			aux.tp_vlan_tpid = ntohs(skb->vlan_proto);
+			aux.tp_status |= TP_STATUS_VLAN_VALID | TP_STATUS_VLAN_TPID_VALID;
+		} else {
+			aux.tp_vlan_tci = 0;
+			aux.tp_vlan_tpid = 0;
+		}
+
+                                         
