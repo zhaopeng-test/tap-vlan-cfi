@@ -1,0 +1,14 @@
+
+1. modify tun dir Makefile
+   del other obj-$(CONFIG-*) +=
+   not compile other module
+
+2. cd the kernel soruce code tun dir
+   make -j 90 CONFIG_TUN=m -C /usr/src/kernels/3.10.0-1160.59.1.el7.x86_64  M=`pwd` modules
+
+3. insmod tun.ko
+
+4. modinfo tun
+    
+   
+

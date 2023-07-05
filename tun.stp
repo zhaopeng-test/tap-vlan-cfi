@@ -1,0 +1,51 @@
+#stap -g --all-modules tun.stp -v
+
+%{
+#include <linux/kernel.h>
+#include <linux/net.h>
+#include <linux/textsearch.h>
+#include <net/checksum.h>
+#include <linux/dma-mapping.h>
+#include <linux/netdev_features.h>
+#include <linux/skbuff.h>
+#include <uapi/linux/ip.h>
+#include <uapi/linux/udp.h>
+#include <uapi/linux/tcp.h>
+#include <linux/if_vlan.h>
+
+
+#define NIPQUAD(addr) \
+((unsigned char *)&addr)[0], \
+((unsigned char *)&addr)[1], \
+((unsigned char *)&addr)[2], \
+((unsigned char *)&addr)[3]
+
+
+%}
+
+function show_skb:string(skb:long)
+%{
+        struct sk_buff *sb = (struct sk_buff *)STAP_ARG_skb;
+        struct vlan_hdr *vhdr = (struct vlan_hdr *)((unsigned char *)sb->data + 12);
+        char *dev = sb->dev->name;
+
+        snprintf(STAP_RETVALUE, MAXSTRINGLEN, "tci 0x%hx, type : 0x%hx dev %s vlan_tci %x pro %x\n",
+                                ntohs(vhdr->h_vlan_TCI), ntohs(vhdr->h_vlan_encapsulated_proto), dev, sb->vlan_tci, ntohs(sb->vlan_proto));
+
+%}
+
+
+
+#probe kernel.statement("__netif_receive_skb_core@net/core/dev.c:4286")
+#probe kernel.function("run_filter")
+#probe kernel.function("skb_copy_datagram_iovec")
+#probe kernel.function("packet_recvmsg")
+probe kernel.statement("packet_recvmsg@net/packet/af_packet.c:3017")
+{
+        #printf("================\n");
+        #print_backtrace();
+        #printf("%s\n", show_skb($skb));
+        #printf("================\n");
+	printf("%s tci %x\n", pp(), aux.tp_vlan_tci);
+}
+

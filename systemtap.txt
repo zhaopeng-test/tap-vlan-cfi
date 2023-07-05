@@ -1,0 +1,15 @@
+1) install
+   yum install kernel-devel-`uname -r`
+   yum install kernel-debuginfo-`uname -r`
+
+   or download rpms
+   rpm -ivh kernel-debuginfo-3.10.0-123.el7.x86_64.rpm
+   rpm -ivh kernel-debuginfo-common-x86_64-3.10.0-123.el7.x86_64.rpm
+
+   yum install -y systemtap
+
+2) example dir
+   /usr/share/systemtap/tapset/linux
+
+3) test 
+  stap -e 'probe begin { printf("Hello World!\n") exit() }'

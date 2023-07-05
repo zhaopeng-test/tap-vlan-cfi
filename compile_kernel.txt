@@ -1,0 +1,39 @@
+1. how combile kernel source code and install
+
+   0) download kernel source code
+    https://vault.centos.org/
+
+    https://vault.centos.org/7.9.2009/os/Source/SPackages/    
+    kernel-3.10.0-1160.el7.src.rpm   
+   
+    install rpm
+    groupadd mockbuild
+    useradd mockbuild -g mockbuild
+
+    rpm -ivh kernel-3.10.0-1160.el7.src.rpm
+
+    packet linux-3.10.0-1160.el7.tar.xz in dir:
+    /root/rpmbuild/SOURCES/
+   
+    tar -xvf linux-3.10.0-1160.el7.tar.xz
+
+   1) cp /boot/config-3.10.0-1160.el7.x86_64 linux-3.10.0-1160.el7/.config
+     vi .config
+     modify : CONFIG_LOCALVERSION="update-tun"
+
+     when install,its show version
+     [root@localhost linux-3.10.0-1160.el7]# uname -r
+     3.10.0update-tun
+
+   2) combile   
+      yum -y install openssh-devel elfutils-libelf-devel bc
+      yum -y install ncurses-devel
+      
+      make -j 40
+
+   3)install 
+     make modules_install
+     make install
+
+
+
